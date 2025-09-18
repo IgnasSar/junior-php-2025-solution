@@ -17,6 +17,14 @@ framework:
     php_errors:
         log: true
 
+    http_client:
+        scoped_clients:
+            ipstack.client:
+                base_uri: 'http://api.ipstack.com/'
+                query:
+                    access_key: '%env(IPSTACK_API_KEY)%'
+                timeout: 5
+
 when@test:
     framework:
         test: true
