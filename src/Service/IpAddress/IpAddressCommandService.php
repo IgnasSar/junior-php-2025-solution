@@ -40,16 +40,30 @@ class IpAddressCommandService
         return $ipAddress;
     }
 
-    public function delete(IpsRequest $ipsRequest): void
+    public function deleteOne(string $ip): void
     {
-        $ipAddressArray = $this->ipAddressRepository
-            ->findAllByIp($ipsRequest->ips);
+        $this->processIpDeletion([$ip]);
+    }
 
-        if([] === $ipAddressArray) {
-            throw new NotFoundHttpException('Ip addresses not found');
+    public function deleteAll(IpsRequest $ipsRequest): void
+    {
+        $this->processIpDeletion($ipsRequest->ips);
+    }
+
+    /**
+     * @param string[] $ips
+     */
+    private function processIpDeletion(array $ips): void
+    {
+        $ipAddressArray = $this->ipAddressRepository->findAllByIp($ips);
+
+        if ([] === $ipAddressArray) {
+            throw new NotFoundHttpException(
+                'Ip addresses not found: ' . implode(', ', $ips)
+            );
         }
 
-        foreach ($ipAddressArray as $ipAddress){
+        foreach ($ipAddressArray as $ipAddress) {
             $this->entityManager->remove($ipAddress);
         }
 

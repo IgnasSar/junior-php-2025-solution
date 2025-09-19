@@ -7,82 +7,103 @@ namespace App\Service\IpBlacklist;
 use App\Client\IpstackClient;
 use App\Dto\IpsRequest;
 use App\Entity\IpBlacklist;
-use App\Repository\IpAddressRepository;
 use App\Repository\IpBlacklistRepository;
+use App\Service\Helper\IpPrefetchService;
 use App\Service\IpAddress\IpAddressCommandService;
 use Doctrine\ORM\EntityManagerInterface;
+use RuntimeException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
-class IpBlacklistCommandService{
+class IpBlacklistCommandService
+{
     public function __construct(
         private readonly EntityManagerInterface $entityManager,
-        private readonly IpAddressRepository $ipAddressRepository,
         private readonly IpstackClient $ipstackClient,
         private readonly IpAddressCommandService $ipAddressCommandService,
-        private readonly IpBlacklistRepository $ipBlacklistRepository
-    ){}
+        private readonly IpBlacklistRepository $ipBlacklistRepository,
+        private readonly IpPrefetchService $ipPrefetchService
+    ) {}
 
-    public function create(IpsRequest $ipsRequest): array
+    public function createOne(string $ip): string
     {
-        [$ipAddressMap, $ipBlacklistMap] = $this->buildIpMaps($ipsRequest->ips);
+        [$ipBlacklistMap, $ipAddressMap] =
+            $this->ipPrefetchService->mapPrefetchedData([$ip]);
 
-        $createdIps = [];
+        $this->processIpCreation($ip, $ipBlacklistMap, $ipAddressMap, true);
 
+        $this->entityManager->flush();
+
+        return $ip;
+    }
+
+    public function createAll(IpsRequest $ipsRequest): array
+    {
+        [$ipBlacklistMap, $ipAddressMap] =
+            $this->ipPrefetchService->mapPrefetchedData($ipsRequest->ips);
+
+        $createdIpArray = [];
         foreach ($ipsRequest->ips as $ip) {
-            if (isset($ipBlacklistMap[$ip])) {
-                continue;
+            $ipBlacklist = $this->processIpCreation($ip, $ipBlacklistMap, $ipAddressMap, false);
+
+            if ($ipBlacklist !== null) {
+                $createdIpArray[] = $ip;
             }
-
-            $ipAddress = $ipAddressMap[$ip] ?? null;
-            if ($ipAddress === null) {
-                $ipAddress = $this->ipAddressCommandService
-                    ->create($ip, $this->ipstackClient->getIpData($ip));
-            }
-
-            $ipBlacklist = (new IpBlacklist())->setIpAddress($ipAddress);
-
-            $this->entityManager->persist($ipBlacklist);
-
-            $createdIps[] = $ip;
         }
 
         $this->entityManager->flush();
 
-        return $createdIps;
+        return $createdIpArray;
+    }
+
+    /**
+     * @param array $ipBlacklistMap
+     * @param array $ipAddressMap
+     * @return IpBlacklist|null
+     */
+    private function processIpCreation(
+        string $ip,
+        array $ipBlacklistMap,
+        array $ipAddressMap,
+        bool $failOnExisting
+    ): ?IpBlacklist
+    {
+        if (isset($ipBlacklistMap[$ip])) {
+            if (true === $failOnExisting) {
+                throw new RuntimeException("Ip {$ip} is already blacklisted");
+            }
+            return null;
+        }
+
+        $ipAddress = $ipAddressMap[$ip] ?? $this->ipAddressCommandService
+            ->create($ip, $this->ipstackClient->getIpData($ip));
+
+        $ipBlacklist = (new IpBlacklist())->setIpAddress($ipAddress);
+
+        $this->entityManager->persist($ipBlacklist);
+
+        return $ipBlacklist;
+    }
+
+    public function deleteOne(string $ip): void
+    {
+        $this->processIpDeletion([$ip]);
+    }
+
+    public function deleteAll(IpsRequest $ipsRequest): void
+    {
+        $this->processIpDeletion($ipsRequest->ips);
     }
 
     /**
      * @param string[] $ips
-     * @return array[]
      */
-    private function buildIpMaps(array $ips): array
+    private function processIpDeletion(array $ips): void
     {
-        $existingIpAddresses = $this->ipAddressRepository->findAllByIp($ips);
+        $ipBlacklistArray = $this->ipBlacklistRepository->findAllByIp($ips);
 
-        $ipAddressMap = [];
-        foreach ($existingIpAddresses as $ipAddress) {
-            $ipAddressMap[$ipAddress->getIp()] = $ipAddress;
-        }
-
-        $existingBlacklists = $this->ipBlacklistRepository->findAllByIp($ips);
-
-        $ipBlacklistMap = [];
-        foreach ($existingBlacklists as $ipBlacklist) {
-            $ipBlacklistMap[$ipBlacklist->getIpAddress()->getIp()] = true;
-        }
-
-        return [$ipAddressMap, $ipBlacklistMap];
-    }
-
-
-    public function delete(IpsRequest $ipsRequest): void
-    {
-        $ipBlacklistArray = $this->ipBlacklistRepository
-            ->findAllByIp($ipsRequest->ips);
-
-        if([] === $ipBlacklistArray) {
+        if ([] === $ipBlacklistArray) {
             throw new NotFoundHttpException(
-                'Ip addresses not found: ' . implode(', ', $ipsRequest->ips)
+                'Ip addresses not found: ' . implode(', ', $ips)
             );
         }
 

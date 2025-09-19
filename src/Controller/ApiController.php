@@ -9,7 +9,7 @@ use Symfony\Component\Routing\Annotation\Route;
 
 class ApiController extends AbstractController
 {
-    #[Route('/api/health', name: 'api_health', methods: ['GET'])]
+    #[Route('/health', name: 'api_health', methods: ['GET'])]
     #[OA\Get(
         path: "/api/health",
         summary: "Health check",
