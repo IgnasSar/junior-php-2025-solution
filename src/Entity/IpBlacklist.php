@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Entity;
 
 use App\Repository\IpBlacklistRepository;
+use DateTimeZone;
 use Doctrine\ORM\Mapping as ORM;
 use DateTimeImmutable;
 
@@ -25,7 +26,7 @@ class IpBlacklist
 
     public function __construct()
     {
-        $this->createdAt = new DateTimeImmutable();
+        $this->createdAt = new DateTimeImmutable('now', new DateTimeZone('UTC'));
     }
 
     public function getId(): ?int

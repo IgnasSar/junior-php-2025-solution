@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Entity;
 
 use App\Repository\IpAddressRepository;
+use DateTimeZone;
 use Doctrine\ORM\Mapping as ORM;
 use DateTimeImmutable;
 
@@ -29,8 +30,8 @@ class IpAddress {
 
     public function __construct()
     {
-        $this->createdAt = new DateTimeImmutable();
-        $this->updatedAt = new DateTimeImmutable();
+        $this->createdAt = new DateTimeImmutable('now', new DateTimeZone('UTC'));
+        $this->updatedAt = new DateTimeImmutable('now', new DateTimeZone('UTC'));
     }
     public function getId(): ?int
     {
@@ -56,7 +57,7 @@ class IpAddress {
     public function setData(array $data): self
     {
         $this->data = $data;
-        $this->updatedAt = new DateTimeImmutable();
+        $this->updatedAt = new DateTimeImmutable('now', new DateTimeZone('UTC'));
         return $this;
     }
 

@@ -11,16 +11,15 @@ use App\Entity\IpBlacklist;
 use App\Normalizer\IpAddressNormalizer;
 use App\Service\Helper\IpPrefetchService;
 use DateTimeImmutable;
+use DateTimeZone;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 
 class IpAddressQueryService
 {
-    private const DAY_DECREMENT = '-1 day';
-
     public function __construct(
-        private readonly IpAddressNormalizer     $ipAddressNormalizer,
-        private readonly IpstackClient           $ipstackClient,
+        private readonly IpAddressNormalizer $ipAddressNormalizer,
+        private readonly IpstackClient $ipstackClient,
         private readonly IpAddressCommandService $ipAddressCommandService,
         private readonly IpPrefetchService $ipPrefetchService
     )
@@ -71,8 +70,6 @@ class IpAddressQueryService
      */
     private function processIp(string $ip, array $ipBlacklistMap, array $ipAddressMap): object
     {
-        $oneDayAgo = new DateTimeImmutable(self::DAY_DECREMENT);
-
         if (isset($ipBlacklistMap[$ip])) {
             throw new AccessDeniedHttpException("Ip {$ip} is blacklisted");
         }
@@ -84,7 +81,10 @@ class IpAddressQueryService
                 ->create($ip, $this->ipstackClient->getIpData($ip));
         }
 
-        if ($ipAddress->getUpdatedAt() < $oneDayAgo) {
+        $dateDifference = (new DateTimeImmutable('now', new DateTimeZone('UTC')))
+            ->diff($ipAddress->getUpdatedAt());
+
+        if ($dateDifference->days >= 1 && $dateDifference->invert === 0) {
             return $this->ipAddressCommandService
                 ->update($ipAddress, $this->ipstackClient->getIpData($ip));
         }

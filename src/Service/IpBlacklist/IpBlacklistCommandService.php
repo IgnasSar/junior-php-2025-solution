@@ -4,13 +4,11 @@ declare(strict_types=1);
 
 namespace App\Service\IpBlacklist;
 
-use App\Client\IpstackClient;
 use App\Dto\IpsRequest;
 use App\Entity\IpAddress;
 use App\Entity\IpBlacklist;
 use App\Repository\IpBlacklistRepository;
 use App\Service\Helper\IpPrefetchService;
-use App\Service\IpAddress\IpAddressCommandService;
 use Doctrine\ORM\EntityManagerInterface;
 use RuntimeException;
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
@@ -20,8 +18,6 @@ class IpBlacklistCommandService
 {
     public function __construct(
         private readonly EntityManagerInterface $entityManager,
-        private readonly IpstackClient $ipstackClient,
-        private readonly IpAddressCommandService $ipAddressCommandService,
         private readonly IpBlacklistRepository $ipBlacklistRepository,
         private readonly IpPrefetchService $ipPrefetchService
     ) {}
@@ -49,7 +45,10 @@ class IpBlacklistCommandService
 
     /**
      * Bulk create blacklist entries for multiple IPs.
-     * Skips already blacklisted IPs.
+     *
+     * If all provided IPs dont match ipAddress map or
+     * all of them are IPs matching ipBlacklist map criteria
+     *  - NotFoundHttpException will be thrown
      */
     public function createAll(IpsRequest $ipsRequest): array
     {
@@ -65,6 +64,12 @@ class IpBlacklistCommandService
             }
         }
 
+        if ([] === $createdIpArray) {
+            throw new NotFoundHttpException(
+                'Ip addresses not found: ' . implode(', ', $ipsRequest->ips)
+            );
+        }
+
         $this->entityManager->flush();
 
         return $createdIpArray;
@@ -72,6 +77,11 @@ class IpBlacklistCommandService
 
     /**
      * Handles the creation of a single IpBlacklist entity.
+     * Skips already blacklisted IPs.
+     *
+     * If no ipAdress->ip matches passed down $ip,
+     * either NotFoundHttpException will be thrown for creating one object
+     * or it will return null until the end of array
      *
      * @param IpBlacklist[] $ipBlacklistMap
      * @param IpAddress[] $ipAddressMap
@@ -91,8 +101,14 @@ class IpBlacklistCommandService
             return null;
         }
 
-        $ipAddress = $ipAddressMap[$ip] ?? $this->ipAddressCommandService
-            ->create($ip, $this->ipstackClient->getIpData($ip));
+        $ipAddress = $ipAddressMap[$ip] ?? null;
+
+        if(null === $ipAddress){
+            if(true === $failOnExisting) {
+                throw new NotFoundHttpException("Ip address instance with {$ip} is not found");
+            }
+            return null;
+        }
 
         $ipBlacklist = (new IpBlacklist())->setIpAddress($ipAddress);
 
@@ -103,14 +119,9 @@ class IpBlacklistCommandService
 
     /**
      * Delete a single IP from blacklist.
-     * Validates IP format and throws BadRequestHttpException if invalid.
      */
     public function deleteOne(string $ip): void
     {
-        if (!filter_var($ip, FILTER_VALIDATE_IP)) {
-            throw new BadRequestHttpException("Invalid IP address: {$ip}");
-        }
-
         $this->processIpDeletion([$ip]);
     }
 
