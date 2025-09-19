@@ -6,6 +6,14 @@ namespace App\Dto;
 
 use Symfony\Component\Validator\Constraints as Assert;
 
+/**
+ * Data Transfer Object for a collection of IP addresses.
+ * Used in controller methods that handle bulk IP requests.
+ *
+ * Validation rules:
+ * - The array cannot be empty.
+ * - Each IP must be non-empty and a valid address.
+ */
 class IpsRequest {
     /**
      * @param string[] $ips

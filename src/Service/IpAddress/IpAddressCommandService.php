@@ -8,6 +8,7 @@ use App\Dto\IpsRequest;
 use App\Entity\IpAddress;
 use App\Repository\IpAddressRepository;
 use Doctrine\ORM\EntityManagerInterface;
+use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 class IpAddressCommandService
@@ -40,17 +41,31 @@ class IpAddressCommandService
         return $ipAddress;
     }
 
+    /**
+     * Deletes a single IpAddress by IP.
+     * Validates IP format and throws BadRequestHttpException if invalid.
+     */
     public function deleteOne(string $ip): void
     {
+        if (!filter_var($ip, FILTER_VALIDATE_IP)) {
+            throw new BadRequestHttpException("Invalid IP address: {$ip}");
+        }
+
         $this->processIpDeletion([$ip]);
     }
 
+    /**
+     * Deletes multiple IpAddress entities from a bulk request.
+     */
     public function deleteAll(IpsRequest $ipsRequest): void
     {
         $this->processIpDeletion($ipsRequest->ips);
     }
 
     /**
+     * Deletes all IpAddress entities matching the provided IPs.
+     * Throws NotFoundHttpException if none are found.
+     *
      * @param string[] $ips
      */
     private function processIpDeletion(array $ips): void

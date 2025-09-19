@@ -14,6 +14,9 @@ class IpBlacklistRepository extends ServiceEntityRepository {
     }
 
     /**
+     * Fetch multiple IpBlacklist entities by their associated IP values.
+     * Joins the related IpAddress entity to access the IP values.
+     *
      * @param string[] $ips
      * @return IpBlacklist[]
      */

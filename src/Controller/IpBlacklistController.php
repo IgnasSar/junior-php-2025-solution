@@ -50,7 +50,7 @@ class IpBlacklistController {
         ]
     )]
     public function createCollection(
-        #[MapRequestPayload()] IpsRequest $ipsRequest
+        #[MapRequestPayload] IpsRequest $ipsRequest
     ): JsonResponse
     {
         return new JsonResponse(

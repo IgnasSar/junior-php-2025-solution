@@ -6,12 +6,14 @@ namespace App\Service\IpBlacklist;
 
 use App\Client\IpstackClient;
 use App\Dto\IpsRequest;
+use App\Entity\IpAddress;
 use App\Entity\IpBlacklist;
 use App\Repository\IpBlacklistRepository;
 use App\Service\Helper\IpPrefetchService;
 use App\Service\IpAddress\IpAddressCommandService;
 use Doctrine\ORM\EntityManagerInterface;
 use RuntimeException;
+use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 class IpBlacklistCommandService
@@ -24,8 +26,17 @@ class IpBlacklistCommandService
         private readonly IpPrefetchService $ipPrefetchService
     ) {}
 
+    /**
+     * Create a single blacklist entry for an IP.
+     * Validates IP format and throws BadRequestHttpException if invalid.
+     * Throws RuntimeException if IP is already blacklisted.
+     */
     public function createOne(string $ip): string
     {
+        if (!filter_var($ip, FILTER_VALIDATE_IP)) {
+            throw new BadRequestHttpException("Invalid IP address: {$ip}");
+        }
+
         [$ipBlacklistMap, $ipAddressMap] =
             $this->ipPrefetchService->mapPrefetchedData([$ip]);
 
@@ -36,6 +47,10 @@ class IpBlacklistCommandService
         return $ip;
     }
 
+    /**
+     * Bulk create blacklist entries for multiple IPs.
+     * Skips already blacklisted IPs.
+     */
     public function createAll(IpsRequest $ipsRequest): array
     {
         [$ipBlacklistMap, $ipAddressMap] =
@@ -56,8 +71,10 @@ class IpBlacklistCommandService
     }
 
     /**
-     * @param array $ipBlacklistMap
-     * @param array $ipAddressMap
+     * Handles the creation of a single IpBlacklist entity.
+     *
+     * @param IpBlacklist[] $ipBlacklistMap
+     * @param IpAddress[] $ipAddressMap
      * @return IpBlacklist|null
      */
     private function processIpCreation(
@@ -84,17 +101,32 @@ class IpBlacklistCommandService
         return $ipBlacklist;
     }
 
+    /**
+     * Delete a single IP from blacklist.
+     * Validates IP format and throws BadRequestHttpException if invalid.
+     */
     public function deleteOne(string $ip): void
     {
+        if (!filter_var($ip, FILTER_VALIDATE_IP)) {
+            throw new BadRequestHttpException("Invalid IP address: {$ip}");
+        }
+
         $this->processIpDeletion([$ip]);
     }
 
+
+    /**
+     * Bulk delete multiple IpBlacklist objects.
+     */
     public function deleteAll(IpsRequest $ipsRequest): void
     {
         $this->processIpDeletion($ipsRequest->ips);
     }
 
     /**
+     * Core deletion logic for one or more IPs.
+     * Throws NotFoundHttpException if no matching entries are found.
+     *
      * @param string[] $ips
      */
     private function processIpDeletion(array $ips): void

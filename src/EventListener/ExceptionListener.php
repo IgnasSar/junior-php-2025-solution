@@ -9,6 +9,7 @@ use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Event\ExceptionEvent;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
+use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\Validator\Exception\ValidationFailedException;
 
@@ -58,6 +59,15 @@ class ExceptionListener
                     new JsonResponse([
                         'error' => 'Validation Failed',
                         'violations' => $violations
+                    ], Response::HTTP_BAD_REQUEST)
+                );
+                break;
+
+            case $exception instanceof BadRequestHttpException:
+                $event->setResponse(
+                    new JsonResponse([
+                        'error' => 'Bad Request',
+                        'message' => $exception->getMessage()
                     ], Response::HTTP_BAD_REQUEST)
                 );
                 break;

@@ -14,6 +14,9 @@ class IpPrefetchService {
     ) {}
 
     /**
+     * Prefetches IpAddress and IpBlacklist entities for a list of IPs,
+     * providing fast lookup maps for IP data and blacklist status.
+     *
      * @param string[] $ips
      * @return array[]
      */

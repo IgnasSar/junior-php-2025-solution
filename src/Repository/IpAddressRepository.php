@@ -14,6 +14,8 @@ class IpAddressRepository extends ServiceEntityRepository {
     }
 
     /**
+     * Fetch multiple IpAddress entities by provided IP values.
+     *
      * @param string[] $ips
      * @return IpAddress[]
      */
