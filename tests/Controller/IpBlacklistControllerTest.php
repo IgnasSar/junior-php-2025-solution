@@ -1,42 +1,89 @@
 <?php
-
 declare(strict_types=1);
 
 namespace App\Tests\Controller;
 
-use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
-use Symfony\Component\HttpFoundation\Response;
+use App\Controller\IpBlacklistController;
+use App\Dto\IpsRequest;
+use App\Service\IpBlacklist\IpBlacklistCommandService;
+use PHPUnit\Framework\TestCase;
+use Symfony\Component\HttpFoundation\JsonResponse;
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
+use RuntimeException;
 
-class IpBlacklistControllerTest extends WebTestCase
+class IpBlacklistControllerTest extends TestCase
 {
-    public function testCreateBlacklist(): void
+    public function testCreateOne(): void
     {
-        $client = static::createClient();
+        $ipBlacklistCommandService = $this->createMock(IpBlacklistCommandService::class);
+        $ipBlacklistCommandService
+            ->method('createOne')
+            ->willReturn('1.2.3.4');
 
-        $client->request(
-            'POST',
-            '/api/ip-blacklist',
-            server: ['CONTENT_TYPE' => 'application/json'],
-            content: json_encode(['ips' => ['1.1.1.1']])
-        );
+        $controller = new IpBlacklistController($ipBlacklistCommandService);
 
-        $this->assertResponseStatusCodeSame(Response::HTTP_CREATED);
+        $response = $controller->createOne('1.2.3.4');
+
+        $this->assertSame(JsonResponse::HTTP_CREATED, $response->getStatusCode());
+        $this->assertEquals(json_encode('1.2.3.4'), $response->getContent());
     }
 
-    public function testDeleteBlacklist(): void
+    public function testCreateOneAlreadyBlacklisted(): void
     {
-        $client = static::createClient();
+        $this->expectException(RuntimeException::class);
 
-        $client->request(
-            'DELETE',
-            '/api/ip-blacklist',
-            server: ['CONTENT_TYPE' => 'application/json'],
-            content: json_encode(['ips' => ['1.1.1.1']])
-        );
+        $ipBlacklistCommandService = $this->createMock(IpBlacklistCommandService::class);
+        $ipBlacklistCommandService
+            ->method('createOne')
+            ->willThrowException(new RuntimeException());
 
-        $this->assertContains(
-            $client->getResponse()->getStatusCode(),
-            [Response::HTTP_NO_CONTENT, Response::HTTP_NOT_FOUND]
-        );
+        $controller = new IpBlacklistController($ipBlacklistCommandService);
+
+        $controller->createOne('1.2.3.4');
+    }
+
+    public function testCreateCollection(): void
+    {
+        $ipsRequest = new IpsRequest(['1.1.1.1', '2.2.2.2']);
+
+        $ipBlacklistCommandService = $this->createMock(IpBlacklistCommandService::class);
+        $ipBlacklistCommandService
+            ->method('createAll')
+            ->willReturn($ipsRequest->ips);
+
+        $controller = new IpBlacklistController($ipBlacklistCommandService);
+
+        $response = $controller->createCollection($ipsRequest);
+
+        $this->assertSame(JsonResponse::HTTP_CREATED, $response->getStatusCode());
+        $this->assertEquals(json_encode($ipsRequest->ips), $response->getContent());
+    }
+
+    public function testDeleteOne(): void
+    {
+        $ipBlacklistCommandService = $this->createMock(IpBlacklistCommandService::class);
+        $ipBlacklistCommandService
+            ->expects($this->once())
+            ->method('deleteOne');
+
+        $controller = new IpBlacklistController($ipBlacklistCommandService);
+
+        $response = $controller->deleteOne('1.2.3.4');
+
+        $this->assertSame(JsonResponse::HTTP_NO_CONTENT, $response->getStatusCode());
+    }
+
+    public function testDeleteOneNotFound(): void
+    {
+        $this->expectException(NotFoundHttpException::class);
+
+        $ipBlacklistCommandService = $this->createMock(IpBlacklistCommandService::class);
+        $ipBlacklistCommandService
+            ->method('deleteOne')
+            ->willThrowException(new NotFoundHttpException());
+
+        $controller = new IpBlacklistController($ipBlacklistCommandService);
+
+        $controller->deleteOne('1.2.3.4');
     }
 }
